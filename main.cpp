@@ -1,161 +1,148 @@
 #include<windows.h>
-#ifdef __APPLE__
-#include<GLUT/glut.h>
-#include<openGL/opengl.h>
+#include <GL\glut.h>
+#include <math.h>      // For math routines (such as sqrt & trig).
 
-#else
-#include<GL/glut.h>
-#endif
+GLfloat xRotated, yRotated, zRotated;
+GLdouble radius=2;
+GLfloat qaBlack[] = {0.0, 0.0, 0.0, 1.0}; //Black Color
+GLfloat qaGreen[] = {1.0, 0.0, 0.0, 1.0}; //Green Color
+GLfloat qaWhite[] = {1.0, 1.0, 1.0, 1.0}; //White Color
+GLfloat qaRed[] = {1.0, 0.0, 0.0, 1.0}; //Red Color
 
-float x=1.0,y=1.0;
-float x1=0.0,y1=0.0;
-float x2=0.03,y2=0.0;
-float x3=-0.03,y3=0.0;
+    // Set lighting intensity and color
+GLfloat qaAmbientLight[]    = {0.1, 0.1, 0.1, 1.0};
+GLfloat qaDiffuseLight[]    = {1, 1, 1, 1.0};
+GLfloat qaSpecularLight[]    = {1.0, 1.0, 1.0, 1.0};
+GLfloat emitLight[] = {0.9, 0.9, 0.9, 0.01};
+GLfloat Noemit[] = {0.0, 0.0, 0.0, 1.0};
+    // Light source position
+GLfloat qaLightPosition[]    = {0, 0, 0, 1};// Positional Light
+GLfloat qaLightDirection[]    = {1, 1, 1, 0};// Directional Light
 
-void initRendering()
+void display(void);
+void reshape(int x, int y);
+
+void idleFunc(void)
 {
-    glEnable(GL_DEPTH_TEST);
+        if ( zRotated > 360.0 ) {
+         zRotated -= 360.0*floor(zRotated/360.0);   // Don't allow overflow
+      }
+
+          if ( yRotated > 360.0 ) {
+         yRotated -= 360.0*floor(yRotated/360.0);   // Don't allow overflow
+      }
+     zRotated += 0.1;
+     yRotated +=0.1;
+
+    display();
+}
+void initLighting()
+{
+
+    // Enable lighting
+    glEnable(GL_LIGHTING);
+    glEnable(GL_LIGHT0);
+
+     // Set lighting intensity and color
+       glLightfv(GL_LIGHT0, GL_AMBIENT, qaAmbientLight);
+    glLightfv(GL_LIGHT0, GL_DIFFUSE, qaDiffuseLight);
+     glLightfv(GL_LIGHT0, GL_POSITION, qaLightPosition);
+     glLightfv(GL_LIGHT0, GL_SPECULAR, qaSpecularLight);
+    ////////////////////////////////////////////////
+
+
+}
+void keyboard(unsigned char key, int x, int y)
+{
+
+
+     if (key == 'l' || key == 'L')
+    {
+          glEnable(GL_LIGHTING);
+    }
+    else if (key == 'd' || key == 'D')
+    {
+        glDisable(GL_LIGHTING);
+    }
+
 }
 
-void reshape(int w,int h)
+
+int main (int argc, char **argv)
 {
-    glViewport(0,0,w,h);
+    glutInit(&argc, argv);
+     glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH );
+    glutInitWindowSize(850,850);
+    glutCreateWindow("Teapot -");
+    initLighting();
 
-    glMatrixMode(GL_PROJECTION);
+    xRotated = yRotated = zRotated = 0.0;
 
-    glLoadIdentity();
-
-    gluPerspective(45,w/h,1,200);
+    glutIdleFunc(idleFunc);
+    glutDisplayFunc(display);
+    glutKeyboardFunc(keyboard); // Register keyboard callback
+    glutReshapeFunc(reshape);
+    glutMainLoop();
+    return 0;
 }
 
-void keyPressed(int k,int xX,int yY)
+void display(void)
 {
-    if(k==GLUT_KEY_UP)
-    {
-        x+=0.05;
-        y+=0.05;
-    }
-    if(k==GLUT_KEY_DOWN)
-    {
-        x-=0.05;
-        y-=0.05;
-    }
-    glutPostRedisplay();
-}
 
-void update()
-{
-    x1+=0.005;
-    y1+=0.005;
-    if(x1>3.5)
-    {
-        x1=0.0;
-        y1=0.0;
-    }
-
-    x2-=0.005;
-    y2+=0.010;
-    if(x2<-2.5)
-    {
-        x2=0.0;
-        y2=0.0;
-    }
-
-    //x3+=0.005;
-    y3+=0.005;
-    if(y3>3.0)
-    {
-        //x1=0.0;
-        y3=0.0;
-    }
-}
-
-void makeBubbles()
-{
-    glColor3f(0.3,0.3,1.3);
-
-    glPushMatrix();
-
-    glTranslatef(x1,y1,-5.0);
-
-    glutSolidSphere(0.1,20,20);
-
-    glPopMatrix();
-
-    glColor3f(1.,0.3,1.3);
-
-    glPushMatrix();
-
-    glTranslatef(x2+0.03,y2,-5.0);
-
-    glutSolidSphere(0.1,20,20);
-
-    glPopMatrix();
-
-    glColor3f(1.0,1.0,0.0);
-
-    glPushMatrix();
-
-    glTranslatef(x3-0.03,y3,-5.0);
-
-    glutSolidSphere(0.1,20,20);
-
-    glPopMatrix();
-
-    update();
-}
-
-void display()
-{
-    glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
 
     glMatrixMode(GL_MODELVIEW);
-
+    // clear the drawing buffer.
+    glClear(GL_COLOR_BUFFER_BIT);
+    // clear the identity matrix.
     glLoadIdentity();
 
+    glTranslatef(0.0,0.0,-20.0);
+
+   glPushMatrix();
+
+
+    glTranslatef(0.0,0.0,0);
+    // Set material properties
+       glMaterialfv(GL_FRONT_AND_BACK, GL_AMBIENT, qaRed);
+
+    glMaterialfv(GL_FRONT_AND_BACK, GL_DIFFUSE, qaRed);
+
+     glMaterialfv(GL_FRONT_AND_BACK, GL_SPECULAR, qaWhite);
+
+     glMaterialf(GL_FRONT_AND_BACK, GL_SHININESS, 1);
+
+         glutSolidTeapot(radius);
+     glPopMatrix();
+
+
+
     glPushMatrix();
-
-    glTranslatef(1.1,1.1,-5.0);
-    glScalef(x,y,1.0);
-
-    glBegin(GL_TRIANGLES);
-
-        glColor3f(0.5,0.5,0.5);
-
-        glVertex3f(-1.0,0.0,0.0);
-        glVertex3f(1.0,0.0,0.0);
-        glVertex3f(0.0,1.0,0.0);
-
-    glEnd();
-
+    glRotatef(yRotated,0.0,1.0,0.0);
+    glTranslatef(5.0,0.0,0.0);
+     glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, emitLight);   // Make sphere glow (emissive)
+     glutSolidSphere(radius/6,25,25);
+     glMaterialfv(GL_FRONT_AND_BACK, GL_EMISSION, Noemit);
     glPopMatrix();
 
-    makeBubbles();
+    glPushMatrix();
+    glRotatef(-yRotated,0.0,1.0,0.0);
+    glTranslatef(5.0,0.0,0.0);
+      glLightfv(GL_LIGHT0, GL_POSITION, qaLightPosition);
+    glPopMatrix();
 
+
+    glFlush();
     glutSwapBuffers();
+
 }
 
-int main(int argc,char **argv)
+void reshape(int x, int y)
 {
-    glutInit(&argc,argv);
+    if (y == 0 || x == 0) return;
+    glMatrixMode(GL_PROJECTION);
+    glLoadIdentity();
 
-    glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGB|GLUT_DEPTH);
-
-    glutInitWindowSize(400,400);
-
-    glutCreateWindow("Fountain Using OpenGL");
-
-    initRendering();
-
-    glutDisplayFunc(display);
-
-    glutIdleFunc(display);
-
-    glutReshapeFunc(reshape);
-
-    glutSpecialFunc(keyPressed);
-
-    glutMainLoop();
-
-    return(0);
+    gluPerspective(39.0,(GLdouble)x/(GLdouble)y,0.6,40.0);
+    glMatrixMode(GL_MODELVIEW);
+    glViewport(0,0,x,y);  //Use the whole window for rendering
 }
