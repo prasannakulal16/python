@@ -1,409 +1,161 @@
 #include<windows.h>
-#include <stdio.h>
-#include <GL/glut.h> //GLUT toolkit
-#include <time.h>
-#define INIT_VIEW_X 0.0    //Define initial camera position and viewing window values
-#define INIT_VIEW_Y 0.0
-#define INIT_VIEW_Z -4.5
-#define VIEW_LEFT -2.0
-#define VIEW_RIGHT 2.0
-#define VIEW_BOTTOM -2.0
-#define VIEW_TOP 2.0
-#define VIEW_NEAR 1.0
-#define VIEW_FAR 200.0
-GLfloat AmbientLight[]={0.3,0.3,0.3,1.0};                  //Initialization values for lighting
-GLfloat DiffuseLight[] ={0.8,0.8,0.8,1.0};
-GLfloat SpecularLight[] ={1.0,1.0,1.0,1.0};
-GLfloat SpecRef[] = {0.7,0.7,0.7,1.0};
-GLfloat LightPos[] = {-50.0,50.0,100.0,1.0};
-GLint Shine =128;
-GLint walkX=0,walkY=0,lookX=0,lookY=0;
-GLint world=1,oldX=-1,oldY=-1;
-GLint doll=-1;
+#ifdef __APPLE__
+#include<GLUT/glut.h>
+#include<openGL/opengl.h>
 
-void eyeright()
+#else
+#include<GL/glut.h>
+#endif
+
+float x=1.0,y=1.0;
+float x1=0.0,y1=0.0;
+float x2=0.03,y2=0.0;
+float x3=-0.03,y3=0.0;
+
+void initRendering()
 {
-    //function for the right eye
-    glPushMatrix();
-    glTranslatef(.17,1.1,.75);     //Specify the coordinates for the right eye
-    glRotatef(-45,0,0,1);
-    glScalef(.9,.7,.7);            //Specify the size of the right eye
-    glColor3f(1.0,1.0,1.0);       //Specify the color of the eye
-    gluSphere(gluNewQuadric(),.3,100,100);
-    glPopMatrix();
-}
-void eyeleft()
-{
-    glPushMatrix();
-    glTranslatef(-.17,1.1,.75);     //Specify the position for the left eye
-    glRotatef(45,0,0,1);
-    glScalef(.9,.7,.7);
-    glColor3f(1.0,1.0,1.0);
-    gluSphere(gluNewQuadric(),.3,100,100);
-    glPopMatrix();
+    glEnable(GL_DEPTH_TEST);
 }
 
-void legleft()
+void reshape(int w,int h)
 {
-    glPushMatrix();
-     glColor3f(1,1,1);
-    glTranslatef(.3,-.5,0);     //Specify the position for the left leg
-    glRotatef(-90.0,1,0,0);
-    glScalef(.8,.8,.8);
-    gluCylinder(gluNewQuadric(),.5,.5,.5,30,6);
-    glPopMatrix();
-}
-
-void legright()
-{
-    glPushMatrix();
-     glColor3f(1,1,1);
-    glTranslatef(-.3,-.5,0);     //Specify the position for the right leg
-    glRotatef(-90.0,1,0,0);
-    glScalef(.8,.8,.8);
-    gluCylinder(gluNewQuadric(),.5,.5,.5,30,6);
-    glPopMatrix();
-}
-
-void armleft()
-{
-    glPushMatrix();
-     glColor3f(0,0,0);
-    glTranslatef(-.82,0,.1);     //Specify the position for the left arm
-    glRotatef(90,0,1,0);
-    glRotatef(-50,1,0,0);
-    gluCylinder(gluNewQuadric(),.15,.15,.48,30,6);
-    glPopMatrix();
-}
-
-void armright()
-{
-    glPushMatrix();
-    glColor3f(0,0,0);
-    glTranslatef(.82,0,.1);      //Specify the position for the right arm
-    glRotatef(90,0,1,0);
-    glRotatef(-130,1,0,0);
-    gluCylinder(gluNewQuadric(),.15,.15,.48,30,6);
-    glPopMatrix();
-}
-
-void handleft()
-{
-    glPushMatrix();
-    glColor3f(1,1,1);
-    glTranslatef(.82,0,.1);     //Specify the position for the left hand
-    glScalef(.4,.3,.3);
-    gluSphere(gluNewQuadric(),.4,100,100);
-    glPopMatrix();
-}
-void handright()
-{
-    glPushMatrix();
-    glColor3f(1,1,1);
-    glTranslatef(-.82,0,.1);    //Specify the position for the right hand
-    glScalef(.4,.3,.3);
-    gluSphere(gluNewQuadric(),.4,100,100);
-    glPopMatrix();
-}
-
-void mouth()
-{
-    glPushMatrix();
-    glTranslatef(0,.78,.74);
-    glScalef(.4,.4,.1);
-    glColor3f(0.0,0.0,0.0);
-    gluSphere(gluNewQuadric(),.4,100,100);
-    glPopMatrix();
-}
-
-void teeth()
-{
-    glPushMatrix();
-    glColor3f(1.0,1.0,1.0);
-    glTranslatef(-.08,.72,.76);
-    glTranslatef(.055,0,.005 );
-    glutSolidCube(.035);
-    glTranslatef(.055,0,0 );
-    glutSolidCube(.035);
-    glPopMatrix();
-}
-void eyebrowleft()
-{
-    glPushMatrix();
-    glTranslatef(-.3,1.5,.97);;
-    glRotatef(90,0,1,0);
-    glRotatef(45,1,0,0);
-    glColor3f(0.0,0.0,0.0);
-    gluCylinder(gluNewQuadric(),.05,.01,.3,4,6);
-    glPopMatrix();
-}
-
-void eyebrowright()
-{
-    glPushMatrix();
-    glTranslatef(.3,1.5,.97);
-    glRotatef(270,0,1,0);
-    glRotatef(45,1,0,0);
-    gluCylinder(gluNewQuadric(),.05,.01,.3,4,6);
-    glPopMatrix();
-}
-
-void neckring()
-{
-    glPushMatrix();
-     glColor3f(1,1,1);
-    glTranslatef(0,.5,0);
-    glScalef(.59,.59,.59);
-    glRotatef(90.0,1,0,0);
-    glutSolidTorus(.1,1.0,20,20);
-    glPopMatrix();
-}
-
-
-void head()
-{
-    glPushMatrix();
-    glTranslatef(0,1.2,0);
-    glScalef(.9 ,.9,.9 );
-    glColor3f(1.0,0.8,0.6);
-    gluSphere(gluNewQuadric(),1,100,100);
-    glPopMatrix();
-}
-
-void maintopball()
-{
-    glPushMatrix();
-    glTranslatef(0,2.2,0);
-    glScalef(.9,.9,.9);
-    gluSphere(gluNewQuadric(),.18,100,100);
-    glPopMatrix() ;
-}
-
-void hatring()
-{
-    glPushMatrix();
-    glTranslatef(0,1.4,0);
-    glScalef(.84,.84,.84);
-    glRotatef(90.0,1,0,0);
-    glutSolidTorus(.1,1.0,20,20);
-    glPopMatrix();
-}
-
-void footleft()
-{
-    glPushMatrix();
-    glTranslatef(-.3,-.5,0);
-    glScalef(1.5,.3,1.5);
-    glColor3f(0.0,0.0,0.0);
-    gluSphere(gluNewQuadric(),.3,100,100);
-    glPopMatrix();
-}
-
-void footright()
-{
-    glPushMatrix();
-    glTranslatef(.3,-.5,0);
-    glScalef(1.5,.3,1.5);
-    glColor3f(0.0,0.0,0.0);
-    gluSphere(gluNewQuadric(),.3,100,100);
-    glPopMatrix();
-}
-
-void bellyCoatbottom()
-{
-    glPushMatrix();
-   // glColor3f(1,1,1);
-    glTranslatef(0,-.2,0);
-    glScalef(1,.7,1);
-    glRotatef(90.0,1,0,0);
-    gluDisk(gluNewQuadric(),0,.8,30,30);
-    glPopMatrix();
-}
-
-void BellyCoat()
-{
-    glPushMatrix();
-    glColor3f(0,0,0);
-    glTranslatef(0,.5,0);
-    glScalef(1,.7,1);
-    glRotatef(90.0,1,0,0);
-    gluCylinder(gluNewQuadric(),.6,.8,1,100,100);
-    glPopMatrix();
-}
-
-void pupilleft()
-{
-    glPushMatrix();
-     glColor3f(0,0,0);
-    glTranslatef(-.17,1.1,.88);
-    glScalef(.9,.9,.9);
-    gluSphere(gluNewQuadric(),.1,100,100);
-    glPopMatrix();
-}
-
-void pupilright()
-{
-    glPushMatrix();
-    glTranslatef(.17,1.1,.88);
-    glScalef(.9,.9,.9);
-    gluSphere(gluNewQuadric(),.1,100,100);
-    glPopMatrix();
-}
-
-void topbutton()
-{
-    glPushMatrix();
-     glColor3f(1,1,1);
-    glTranslatef(-.1,.4,.85);
-    glScalef(1.9,1.9,1.9);
-    gluSphere(gluNewQuadric(),.04,100,100);
-    glPopMatrix();
-}
-void middlebutton()
-{
-    glPushMatrix();
-     glColor3f(1,1,1);
-    glTranslatef(-.1,.15,.98);
-    glScalef(1.9,1.9,1.9);
-    gluSphere(gluNewQuadric(),.04,100,100);
-    glPopMatrix();
-}
-void bottombutton()
-{
-    glPushMatrix();
-     glColor3f(1,1,1);
-    glTranslatef(-.1,-.1,.92);
-    glScalef(1.9,1.9,1.9);
-  //  glColor3f(0.0,0.0,0.0);
-    gluSphere(gluNewQuadric(),.04,100,100);
-    glPopMatrix();
-}
-
-void Display()
-{
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);//Clear the window
-    glColor3ub(50, 50, 150);//Change the draw color to slate blue
-    glPushMatrix();//Save viewing matrix state
-    if(world==1)
-	{
-       	      glTranslatef(walkX,-1,walkY);
-                  glRotatef(lookY,0,1,0);
-                  glRotatef(lookX,1,0,0);
-	}
-
-
-    //*******************Doll***********************
-    glPushMatrix();
-    glTranslatef(-1,0,-6);
-
-
-
-     if(doll==1)
-	{
-                  glTranslatef(walkX,-1,walkY);
-                  glRotatef(lookY,0,1,0);
-                  glRotatef(lookX,1,0,0);
-	}
-    eyeright();
-    eyeleft();
-    eyebrowleft();
-    eyebrowright();
-    glColor3f(0.0,1.0,0.0);
-    neckring();
-    glColor3ub(50,40,60);
-    legright();
-    legleft();
-    glColor3ub(255,90,0);
-    armleft();
-    armright();
-    BellyCoat();
-    bellyCoatbottom();
-    glColor3ub(0,185,0);
-    handleft();
-    handright();
-    mouth();
-  //  teeth();
-    glColor3ub(255,222,173);
-    head();
-    glColor3f(0.0,0.0,0.0);
-    footleft();
-    footright();
-    topbutton();
-    middlebutton();
-    bottombutton();
-    pupilleft();
-    pupilright();
-    glPopMatrix();
-
-    glPopMatrix();                                     //****Restore matrix state****
-    glutSwapBuffers();                             //****Flush drawing commands****
-}
-
-
-
-void SetupRend()
-{
-    glClearColor(0.7,0.7,1.0,1.0);
-    glEnable(GL_DEPTH_TEST);         //Enable depth testing
-    glEnable(GL_LIGHTING);             //Enable lighting
-    glLightfv(GL_LIGHT0,GL_AMBIENT,AmbientLight);//Set up and enable light zero
-    glLightfv(GL_LIGHT0,GL_DIFFUSE,DiffuseLight);
-    glLightfv(GL_LIGHT0,GL_SPECULAR,SpecularLight);
-    glEnable(GL_LIGHT0);
-    glEnable(GL_COLOR_MATERIAL);                   //Enable color tracking
-    glColorMaterial(GL_FRONT,GL_AMBIENT_AND_DIFFUSE);//Set material to follow
-    glMaterialfv(GL_FRONT,GL_SPECULAR,SpecRef);//Set specular reflectivity and shine
-    glMateriali(GL_FRONT,GL_SHININESS,Shine);
-}
-
-void walk(int key,int x,int y)                                      //change positions using arrow keys
-{
-    if(key==GLUT_KEY_UP)    walkY+=1;
-    if(key==GLUT_KEY_DOWN)  walkY-=1;
-    if(key==GLUT_KEY_RIGHT) walkX+=1;
-    if(key==GLUT_KEY_LEFT)  walkX-=1;
-    if(key==GLUT_KEY_F10)    world=-world;
-    if(key==GLUT_KEY_F9)    doll=-doll;
-
-}
-
-void gaze(int x,int y)
-{
-    if((oldX<0) || (oldY<0))
-	{
-
-      oldX=x;
-                  oldY=y;
-	}
-    lookX+=y-oldY;lookY+=x-oldX;oldX=x;oldY=y;
-}
-
-void myReshape(int w, int h)
-{
-    GLfloat Ratio;
     glViewport(0,0,w,h);
-    Ratio=1.0*w/h;
+
     glMatrixMode(GL_PROJECTION);
+
     glLoadIdentity();
-    gluPerspective(50.0,Ratio,VIEW_NEAR,VIEW_FAR);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    glTranslatef(INIT_VIEW_X,INIT_VIEW_Y,INIT_VIEW_Z);
-    glLightfv(GL_LIGHT0, GL_POSITION, LightPos);
+
+    gluPerspective(45,w/h,1,200);
 }
 
-int main(int argc, char ** argv)
+void keyPressed(int k,int xX,int yY)
+{
+    if(k==GLUT_KEY_UP)
+    {
+        x+=0.05;
+        y+=0.05;
+    }
+    if(k==GLUT_KEY_DOWN)
+    {
+        x-=0.05;
+        y-=0.05;
+    }
+    glutPostRedisplay();
+}
+
+void update()
+{
+    x1+=0.005;
+    y1+=0.005;
+    if(x1>3.5)
+    {
+        x1=0.0;
+        y1=0.0;
+    }
+
+    x2-=0.005;
+    y2+=0.010;
+    if(x2<-2.5)
+    {
+        x2=0.0;
+        y2=0.0;
+    }
+
+    //x3+=0.005;
+    y3+=0.005;
+    if(y3>3.0)
+    {
+        //x1=0.0;
+        y3=0.0;
+    }
+}
+
+void makeBubbles()
+{
+    glColor3f(0.3,0.3,1.3);
+
+    glPushMatrix();
+
+    glTranslatef(x1,y1,-5.0);
+
+    glutSolidSphere(0.1,20,20);
+
+    glPopMatrix();
+
+    glColor3f(1.,0.3,1.3);
+
+    glPushMatrix();
+
+    glTranslatef(x2+0.03,y2,-5.0);
+
+    glutSolidSphere(0.1,20,20);
+
+    glPopMatrix();
+
+    glColor3f(1.0,1.0,0.0);
+
+    glPushMatrix();
+
+    glTranslatef(x3-0.03,y3,-5.0);
+
+    glutSolidSphere(0.1,20,20);
+
+    glPopMatrix();
+
+    update();
+}
+
+void display()
+{
+    glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
+
+    glMatrixMode(GL_MODELVIEW);
+
+    glLoadIdentity();
+
+    glPushMatrix();
+
+    glTranslatef(1.1,1.1,-5.0);
+    glScalef(x,y,1.0);
+
+    glBegin(GL_TRIANGLES);
+
+        glColor3f(0.5,0.5,0.5);
+
+        glVertex3f(-1.0,0.0,0.0);
+        glVertex3f(1.0,0.0,0.0);
+        glVertex3f(0.0,1.0,0.0);
+
+    glEnd();
+
+    glPopMatrix();
+
+    makeBubbles();
+
+    glutSwapBuffers();
+}
+
+int main(int argc,char **argv)
 {
     glutInit(&argc,argv);
+
     glutInitDisplayMode(GLUT_DOUBLE|GLUT_RGB|GLUT_DEPTH);
-    glutCreateWindow("Dancing dolls");
-    glutInitWindowSize(700,800);
-    glutReshapeFunc(myReshape);
-    glutDisplayFunc(Display);
-    glutIdleFunc(Display);
-   glutSpecialFunc(walk);
-  //  glutPassiveMotionFunc(gaze);
-    SetupRend();
-    glEnable(GL_NORMALIZE);
+
+    glutInitWindowSize(400,400);
+
+    glutCreateWindow("Fountain Using OpenGL");
+
+    initRendering();
+
+    glutDisplayFunc(display);
+
+    glutIdleFunc(display);
+
+    glutReshapeFunc(reshape);
+
+    glutSpecialFunc(keyPressed);
+
     glutMainLoop();
+
+    return(0);
 }
