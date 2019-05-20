@@ -1,1197 +1,852 @@
 #include<windows.h>
-#include <GL/gl.h>
-#include <GL/glu.h>
-#include <GL/glut.h>
-#include <GL/glext.h>
+#include<GL/glut.h>
+#include<stdio.h>
+#include<stdlib.h>
+#include<math.h>
+#define   PI            3.14159
+#define WIN_WIDTH      600
+#define WIN_HEIGHT      600
+#define CYCLE_LENGTH   3.3f
+#define ROD_RADIUS      0.05f
+#define NUM_SPOKES      20
+#define SPOKE_ANGLE      18
+#define RADIUS_WHEEL   1.0f
+#define TUBE_WIDTH      0.08f
+#define RIGHT_ROD      1.6f
+#define RIGHT_ANGLE      48.0f
+#define MIDDLE_ROD      1.7f
+#define MIDDLE_ANGLE   106.0f
+#define BACK_CONNECTOR   0.5f
+#define LEFT_ANGLE      50.0f
+#define WHEEL_OFFSET   0.11f
+#define WHEEL_LEN      1.1f
+#define TOP_LEN         1.5f
+#define CRANK_ROD      0.7f
+#define CRANK_RODS      1.12f
+#define CRANK_ANGLE      8.0f
+#define HANDLE_ROD      1.2f
+#define FRONT_INCLINE   70.0f
+#define HANDLE_LIMIT   70.0f
 
-// C library headers
-#include <cstdio>
-#include <cmath>
-#include <cstring>
-#include <cstdlib>
-#include <ctime>
-#include <cctype>
-#include <cassert>
-#include <windows.h>
+#define INC_STEERING   2.0f
+#define INC_SPEED      0.05f
 
 
-// C++ headers
-#include <iostream>
-#include <string>
-#include <random>
-
-//#include "rgbpixmap.cpp"
-//#include "Cycle.cpp"
+GLfloat pedalAngle, speed, steering;
 
 
-using namespace std;
+GLfloat camx,camy,camz;
+GLfloat anglex,angley,anglez;
 
 
-bool fullScreenMode = true; // Full-screen or windowed mode?
+int prevx,prevy;
+GLenum Mouse;
 
-// OpenGL utility Functions
 
-double windowPosX = 10;
-double windowPosY = 30;
-double windowWidth = glutGet(GLenum GLUT_SCREEN_WIDTH)-30;
-double windowHeight = glutGet(GLenum GLUT_SCREEN_HEIGHT)-20;
+GLfloat xpos,zpos,direction;
 
-void keyBoard(unsigned char key, int x, int y)
+void ZCylinder(GLfloat radius,GLfloat length);
+void XCylinder(GLfloat radius,GLfloat length);
+
+void drawFrame(void);
+void gear( GLfloat inner_radius, GLfloat outer_radius,
+        GLfloat width,GLint teeth, GLfloat tooth_depth );
+void drawChain(void);
+void drawPedals(void);
+void drawTyre(void);
+void drawSeat(void);
+void help(void);
+void init(void);
+void reset(void);
+void display(void);
+void idle(void);
+void updateScene(void);
+void landmarks(void);
+void special(int key,int x,int y);
+void keyboard(unsigned char key,int x,int y);
+void mouse(int button,int state,int x,int y);
+void motion(int x,int y);
+void reshape(int w,int h);
+void glSetupFuncs(void);
+GLfloat Abs(GLfloat);
+GLfloat degrees(GLfloat);
+GLfloat radians(GLfloat);
+GLfloat angleSum(GLfloat, GLfloat);
+
+
+void ZCylinder(GLfloat radius,GLfloat length)
 {
-    switch(key)
-    {
-
-    case 27:
-        exit(0);
-    }
+   GLUquadricObj *cylinder;
+   cylinder=gluNewQuadric();
+   glPushMatrix();
+      glTranslatef(0.0f,0.0f,0.0f);
+      gluCylinder(cylinder,radius,radius,length,15,5);
+   glPopMatrix();
 }
 
-void specialKeys(int key, int x, int y)
+void XCylinder(GLfloat radius,GLfloat length)
 {
-    switch(key)
-    {
-    case GLUT_KEY_F1:    // F1: Toggle between full-screen and windowed mode
-        fullScreenMode = !fullScreenMode;         // Toggle state
-        if (fullScreenMode)                       // Full-screen mode
-        {
-            windowPosX   = glutGet(GLUT_WINDOW_X); // Save parameters for restoring later
-            windowPosY   = glutGet(GLUT_WINDOW_Y);
-            windowWidth  = glutGet(GLUT_WINDOW_WIDTH);
-            windowHeight = glutGet(GLUT_WINDOW_HEIGHT);
-            glutFullScreen();                      // Switch into full screen
-        }
-        else                                             // Windowed mode
-        {
-            glutReshapeWindow(windowWidth, windowHeight); // Switch into windowed mode
-            glutPositionWindow(windowPosX, windowPosX);   // Position top-left corner
-        }
-        break;
-    }
+   glPushMatrix();
+      glRotatef(90.0f,0.0f,1.0f,0.0f);
+      ZCylinder(radius,length);
+   glPopMatrix();
 }
 
 
-std::random_device rd;
-std::mt19937 gen(rd());
-
-void randomColor()
+void updateScene()
 {
-    double colorR = generate_canonical<double, 2>(gen);
-    double colorG = generate_canonical<double, 2>(gen);
-    double colorB = generate_canonical<double, 2>(gen);
-    glColor3f(colorR,colorG,colorB);
+   GLfloat xDelta, zDelta;
+   GLfloat rotation;
+   GLfloat sin_steering, cos_steering;
+
+
+   if (-INC_SPEED < speed && speed < INC_SPEED) return;
+
+   if(speed < 0.0f)
+         pedalAngle = speed = 0.0f;
+
+
+
+   xDelta = speed*cos(radians(direction + steering));
+   zDelta = speed*sin(radians(direction + steering));
+   xpos += xDelta;
+   zpos -= zDelta;
+   pedalAngle = degrees(angleSum(radians(pedalAngle), speed/RADIUS_WHEEL));
+
+   sin_steering = sin(radians(steering));
+   cos_steering = cos(radians(steering));
+
+
+   rotation = atan2(speed * sin_steering, CYCLE_LENGTH + speed * cos_steering);
+   direction = degrees(angleSum(radians(direction),rotation));
 }
 
-
-/////////////////////////////////////////////////////////////////////////////////////////////
-/////////////////////////////////////////////////////////////////////////////////////////////
-//===========================================================================================
-
-
-
-#define PI 3.1415926535897932384626433832795
-#define MaximumTheta 1.0
-#define MinimumTheta 0.0009
-#define MaximumRadious 10.5
-#define MinimumRadious .9
-
-int width =  glutGet(GLenum GLUT_SCREEN_WIDTH);
-int height =  glutGet(GLenum GLUT_SCREEN_HEIGHT);
-
-
-GLfloat IncrementTheta = 0.05;
-GLint WindowSizX=width,WindowSizY=height;
-
-GLfloat EyePosition_X=2.0,EyePosition_Y=1.3,EyePosition_Z= 2.0;
-GLfloat Radious=3.3,ProRadious=3.0,InitialTheta1=0.716,InitialTheta2=0.403;
-
-GLfloat Center_X=0.0,Center_Y=0.0,Center_Z=0.0;
-GLfloat Up_X=0.0,Up_Y=1.0,Up_Z=0.0;
-
-enum { ClockWise,AntiClockWise };
-enum {Theta1,Theta2};
-
-float Near=.05, Far=10.0,fova = 50.0;
-
-GLint direction = AntiClockWise;
-GLint PressMovenent=Theta1;
-
-RGBpixmap pix[15];
-
-//FUNCTION DECLEARATION
-
-void CalculationX_Y_Z();
-void CalculationTH1();
-void CalculationTH2();
-void Movenent();
-
-
-
-GLUquadricObj *cone, *base, *qsphere, *cylinder;
-
-
-
-
-
-
-
-
-
-void tableLeg(double thick, double len)
-
+GLfloat angleSum(GLfloat a, GLfloat b)
 {
-
-    glPushMatrix();
-    glTranslated(0, len/2, 0);
-    glScaled(thick, len, thick);
-    glutSolidCube(1.0);
-    glPopMatrix();
+  a += b;
+  if (a < 0) return a+2*PI;
+  else if (a > 2*PI) return a-2*PI;
+  else return a;
 }
 
 
-void buildingBlock()
+void drawFrame()
 {
+   glColor3f(1.0f,0.0f,0.0f);
 
-    double topWidth = 0.6;
-    double topThick = 0.02;
-    double legThick = 0.02;
-    double legLen = 0.3;
 
-    glPushMatrix();
-    glTranslated(0, legLen, 0);
-    glScaled(topWidth, topThick, topWidth);
-    glutSolidCube(1.0);
-    glPopMatrix();
+   glPushMatrix();
 
-    glPushMatrix();
-    glTranslated(0, 0, 0);
-    glScaled(topWidth, topThick, topWidth);
-    glutSolidCube(1.0);
-    glPopMatrix();
+      glPushMatrix();
 
+         glColor3f(0.0f,1.0f,0.0f);
 
-    glPushMatrix();
-    glPopMatrix();
+         glPushMatrix();
+            glTranslatef(0.0f,0.0f,0.06f);
+            glRotatef(-2*pedalAngle,0.0f,0.0f,1.0f);
+            gear(0.08f,0.3f,0.03f,30,0.03f);
+         glPopMatrix();
 
-    /// Solid Cube
+         glColor3f(1.0f,0.0f,0.0f);
+         glTranslatef(0.0f,0.0f,-0.2f);
+         ZCylinder(0.08f,0.32f);
+      glPopMatrix();
 
-    glPushMatrix();
-    glScaled(1,0.5,1);
-    glTranslated(0,0.3,0);
-    glutSolidCube(0.55);
-    glPopMatrix();
+      glRotatef(RIGHT_ANGLE,0.0f,0.0f,1.0f);
+      XCylinder(ROD_RADIUS,RIGHT_ROD);
 
 
-    double dist = 0.95 * topWidth/2.0 - legThick/2.0;
-    glPushMatrix();
-    glTranslated(dist, 0, dist);
-    tableLeg(legThick, legLen);
-    glTranslated(0, 0, -2*dist);
-    tableLeg(legThick, legLen);
-    glTranslated(-2*dist, 0, 2*dist);
-    tableLeg(legThick, legLen);
-    glTranslated(0, 0, -2*dist);
-    tableLeg(legThick, legLen);
-    glPopMatrix();
-}
+      glRotatef(MIDDLE_ANGLE-RIGHT_ANGLE,0.0f,0.0f,1.0f);
+      XCylinder(ROD_RADIUS,MIDDLE_ROD);
 
+      glColor3f(1.0f,1.0f,0.0f);
+      glTranslatef(MIDDLE_ROD,0.0f,0.0f);
+      glRotatef(-MIDDLE_ANGLE,0.0f,0.0f,1.0f);
+      glScalef(0.3f,ROD_RADIUS,0.25f);
+      drawSeat();
 
-void fench()
-{
+      glColor3f(1.0f,0.0f,0.0f);
+   glPopMatrix();
 
-    double topWidth = 0.6;
-    double topThick = 0.02;
-    double legThick = 0.02;
-    double legLen = 0.3;
+   glPushMatrix();
+      glRotatef(-180.0f,0.0f,1.0f,0.0f);
+      XCylinder(ROD_RADIUS,BACK_CONNECTOR);
 
-    glPushMatrix();
-    glBindTexture(GL_TEXTURE_2D,5);
-    glEnable(GL_TEXTURE_2D);
-    glTranslated(0, legLen, 0);
-    glScaled(topWidth, topThick, topWidth);
-    glutSolidCube(1);
-    glDisable(GL_TEXTURE_2D);
-    glPopMatrix();
-}
+      glPushMatrix();
+         glTranslatef(0.5f,0.0f,WHEEL_OFFSET);
+         XCylinder(ROD_RADIUS,RADIUS_WHEEL+TUBE_WIDTH);
+      glPopMatrix();
+      glPushMatrix();
+         glTranslatef(0.5f,0.0f,-WHEEL_OFFSET);
+         XCylinder(ROD_RADIUS,RADIUS_WHEEL+TUBE_WIDTH);
+      glPopMatrix();
+   glPopMatrix();
 
+   glPushMatrix();
+      glTranslatef(-(BACK_CONNECTOR+RADIUS_WHEEL+TUBE_WIDTH),0.0f,0.0f);
 
-void drawfench()
-{
-    glPushMatrix();
-    glRotated(90,0,0,1);
-    fench();
-    glPopMatrix();
-}
+      glPushMatrix();
+         glRotatef(-2*pedalAngle,0.0f,0.0f,1.0f);
+         drawTyre();
+         glColor3f(0.0f,1.0f,0.0f);
+            gear(0.03f,0.15f,0.03f,20,0.03f);
+         glColor3f(1.0f,0.0f,0.0f);
+      glPopMatrix();
+      glRotatef(LEFT_ANGLE,0.0f,0.0f,1.0f);
 
-void draw2fench()
-{
-    glPushMatrix();
-    glScalef(1,0.3,1);
-    glTranslated(0.6,1.28,0);
-    glRotated(90,0,1,0);
-    drawfench();
-    glPopMatrix();
-}
+      glPushMatrix();
+         glTranslatef(0.0f,0.0f,-WHEEL_OFFSET);
+         XCylinder(ROD_RADIUS,WHEEL_LEN);
+      glPopMatrix();
+      glPushMatrix();
+         glTranslatef(0.0f,0.0f,WHEEL_OFFSET);
+         XCylinder(ROD_RADIUS,WHEEL_LEN);
+      glPopMatrix();
 
-void draw3fench()
-{
-    glPushMatrix();
-    glTranslated(-0.6,0,0);
-    draw2fench();
-    glPopMatrix();
-}
 
+      glTranslatef(WHEEL_LEN,0.0f,0.0f);
+      XCylinder(ROD_RADIUS,CRANK_ROD);
 
-void draw4fench()
-{
 
-    glPushMatrix();
-    glScaled(0.5,1,1);
-    glTranslated(0.3,0,0);
-    draw3fench();
-    glPopMatrix();
+      glTranslatef(CRANK_ROD,0.0f,0.0f);
+      glRotatef(-LEFT_ANGLE,0.0f,0.0f,1.0f);
+      XCylinder(ROD_RADIUS,TOP_LEN);
 
+      glTranslatef(TOP_LEN,0.0f,0.0f);
+      glRotatef(-FRONT_INCLINE,0.0f,0.0f,1.0f);
 
-}
 
+      glPushMatrix();
+         glTranslatef(-0.1f,0.0f,0.0f);
+         XCylinder(ROD_RADIUS,0.45f);
+      glPopMatrix();
 
-void grass()
-{
+      glPushMatrix();
+         glRotatef(-steering,1.0f,0.0f,0.0f);
 
-    double topWidth = 0.6;
-    double topThick = 0.02;
-    double legThick = 0.02;
-    double legLen = 0.3;
+         glTranslatef(-0.3f,0.0f,0.0f);
 
-    glPushMatrix();
-    glTranslated(0, legLen, 0);
-    glScaled(topWidth, topThick, topWidth);
-    glutSolidCube(1.0);
-    glPopMatrix();
 
+         glPushMatrix();
+            glRotatef(FRONT_INCLINE,0.0f,0.0f,1.0f);
 
-    glPushMatrix();
-    glScalef(1,0.3,1);
-    glTranslated(0,1.28,0);
-    drawfench();
-    glPopMatrix();
-
-    glPushMatrix();
-    glScalef(1,0.3,1);
-    glTranslated(0.6,1.28,0);
-    drawfench();
-    glPopMatrix();
-
-    glPushMatrix();
-    glTranslated(0,0,-0.6);
-    draw3fench();
-    glPopMatrix();
-
-    ///void draw4fench()
-
-    glPushMatrix();
-    draw4fench();
-    glPopMatrix();
-
-
-    glPushMatrix();
-
-    glScaled(0.6,1,1);
-    glTranslated(-0.5,0,0);
-    draw4fench();
-
-    glPopMatrix();
-
-
-    glPushMatrix();
-
-    glPopMatrix();
-
-    /// Gate code goes here
-
-}
-
-
-void building()
-{
-    glPushMatrix();
-    glTranslated(0.4, 0, 0.4);
-    glBindTexture(GL_TEXTURE_2D,2);
-    glEnable(GL_TEXTURE_2D);
-
-    buildingBlock();
-    glTranslated(0,0.30,0);
-    buildingBlock();
-
-    glDisable(GL_TEXTURE_2D);
-
-    glPopMatrix();
-
-}
-
-
-
-void gateRoof()
-{
-
-    double topWidth = 0.6;
-    double topThick = 0.02;
-    double legThick = 0.02;
-    double legLen = 0.3;
-
-    glPushMatrix();
-    glTranslated(0, legLen, 0);
-    glScaled(topWidth, topThick, topWidth);
-    glutSolidCube(1.0);
-    glPopMatrix();
-}
-
-void gateRoof2()
-{
-    glPushMatrix();
-    glRotated(60,0,0,1);
-    glTranslated(0,0.5,0);
-    glTranslated(0,0,0.25);
-    gateRoof();
-    glPopMatrix();
-}
-
-void gateRoof3()
-{
-    glPushMatrix();
-    glTranslatef(0.5,-0.1,0);
-    glScalef(1,0.8,1);
-    gateRoof2();
-    glPopMatrix();
-}
-
-void gate2Roof()
-{
-    glPushMatrix();
-    glTranslatef(0.6,0,0);
-    glRotated(60,0,0,1);
-    gateRoof3();
-    glPopMatrix();
-}
-
-void gate2Roof2()
-{
-    glPushMatrix();
-    glTranslated(-0.1,0.53,0);
-    gate2Roof();
-    glPopMatrix();
-}
-
-
-void gateRoofRoof()
-{
-    glPushMatrix();
-    glRotated(65,0,0,1);
-    gate2Roof();
-    glPopMatrix();
-}
-void gateRoofRoof2()
-{
-    glPushMatrix();
-    glTranslatef(0,0.38,0);
-    gateRoofRoof();
-    glPopMatrix();
-}
-
-void gate(double topWidth, double topThick, double legThick, double legLen)
-{
-    glPushMatrix();
-    glTranslated(0,0.2,0);
-    gateRoof3();
-    glPopMatrix();
-
-    glPushMatrix();
-    glScalef(1,0.9,1);
-    gate2Roof2();
-    glPopMatrix();
-
-    glPushMatrix();
-    glTranslatef(-0.17,0,0);
-    gateRoofRoof2();
-    glPopMatrix();
-
-
-    double dist = 0.95 * topWidth/2.0 - legThick/2.0;
-    glPushMatrix();
-    glTranslated(dist, 0, dist);
-    tableLeg(legThick*8.5, legLen);
-    glTranslated(0, 0, -2*dist);
-    glTranslated(-2*dist, 0, 2*dist);
-    tableLeg(legThick*8.5, legLen);
-
-    glPopMatrix();
-}
-
-
-void gatefinal1()
-{
-    glPushMatrix();
-    glTranslated(0.4, 0, 0.4);
-    glBindTexture(GL_TEXTURE_2D,6);
-    glEnable(GL_TEXTURE_2D);
-
-    gate(0.6, 0.02, 0.02, 0.3);
-    glDisable(GL_TEXTURE_2D);
-
-    glPopMatrix();
-}
-
-
-void gatefinal2()
-{
-    glPushMatrix();
-    glTranslated(-0.5,0,0.73);
-    glScalef(0.7,0.7,0.7);
-    gatefinal1();
-    glPopMatrix();
-}
-
-
-void fenchPillar()
-{
-
-    double topWidth = 0.6;
-    double topThick = 0.3;
-    double legThick = 0.02;
-    double legLen = 0.3;
-
-
-
-    glPushMatrix();
-    glTranslated(0, legLen, 0);
-    glScaled(topWidth, topThick, topWidth);
-    glutSolidCube(1.0);
-    glPopMatrix();
-
-}
-
-
-
-#define SOLID_CLOSED_CYLINDER(QUAD, BASE, TOP, HEIGHT, SLICES, STACKS) \
-gluCylinder(QUAD, BASE, TOP, HEIGHT, SLICES, STACKS); \
-glRotatef(180, 1,0,0); \
-gluDisk(QUAD, 0.0f, BASE, SLICES, 1); \
-glRotatef(180, 1,0,0); \
-glTranslatef(0.0f, 0.0f, HEIGHT); \
-gluDisk(QUAD, 0.0f, TOP, SLICES, 1); \
-glTranslatef(0.0f, 0.0f, -HEIGHT);
-
-void solidCylinder()
-{
-    GLfloat lightIntensity[] = {2.7f, 2.7f, 2.7f, 1.0f};
-    GLfloat lightPosition[] = {2.0f, 6.0f, 3.0f, 0.0f};
-
-
-    glLightfv(GL_LIGHT0, GL_POSITION, lightPosition);
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, lightIntensity);
-
-    GLUquadric *quadric = gluNewQuadric();
-    gluQuadricDrawStyle(quadric, GLU_FILL);
-    gluQuadricOrientation(quadric, GLU_INSIDE);
-    glBindTexture(GL_TEXTURE_2D,6);
-    glEnable(GL_TEXTURE_2D);
-    SOLID_CLOSED_CYLINDER(quadric, 0.17f, 0.17f, 0.15f, 20, 20)
-    glDisable(GL_TEXTURE_2D);
-    gluDeleteQuadric(quadric);
-}
-
-
-void solidCylinderMe()
-{
-    glPushMatrix();
-    glRotated(90,1,0,0);
-    glScaled(1,1,1.2);
-    glTranslated(1,1,0);
-    solidCylinder();
-    glPopMatrix();
-
-}
-
-void solidCylinderFinal1()
-{
-    glPushMatrix();
-    glScalef(0.5,1.3,0.5);
-    glTranslated(1.35,0.151,1.35);
-    solidCylinderMe();
-    glPopMatrix();
-}
-
-void gateBoundary1Side()
-{
-    glPushMatrix();
-    solidCylinderFinal1();
-    glTranslated(-2.35,0,0);
-    solidCylinderFinal1();
-    glPopMatrix();
-}
-
-
-void roadFunc()
-{
-    double topWidth = 0.6;
-    double topThick = 0.02;
-    double legThick = 0.02;
-    double legLen = 0.3;
-
-    glPushMatrix();
-    glEnable(GL_TEXTURE_2D);
-    glTranslated(0, legLen, 0);
-    glScaled(topWidth, topThick, topWidth);
-    glutSolidCube(1);
-    glDisable(GL_TEXTURE_2D);
-    glPopMatrix();
-}
-
-
-void road()
-{
-
-    GLfloat lightIntensity[] = {2.7f, 2.7f, 2.7f, 1.0f};
-    GLfloat lightPosition[] = {2.0f, 6.0f, 3.0f, 0.0f};
-
-
-    glLightfv(GL_LIGHT0, GL_POSITION, lightPosition);
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, lightIntensity);
-
-    glPushMatrix();
-    glBindTexture(GL_TEXTURE_2D,7);
-    glEnable(GL_TEXTURE_2D);
-    roadFunc();
-    glDisable(GL_TEXTURE_2D);
-    glPopMatrix();
-
-}
-
-void roadInit()
-{
-    glPushMatrix();
-    glScalef(1,1,2.75);
-    glTranslated(-0.23, -0.32, 0.25);
-    road();
-    glPopMatrix();
-
-}
-
-
-void door()
-{
-
-    GLfloat lightIntensity[] = {2.7f, 2.7f, 2.7f, 1.0f};
-    GLfloat lightPosition[] = {2.0f, 6.0f, 3.0f, 0.0f};
-
-
-    glLightfv(GL_LIGHT0, GL_POSITION, lightPosition);
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, lightIntensity);
-
-    glPushMatrix();
-    glBindTexture(GL_TEXTURE_2D,8);
-    glEnable(GL_TEXTURE_2D);
-    roadFunc();
-    glDisable(GL_TEXTURE_2D);
-    glPopMatrix();
-
-}
-
-void door1()
-{
-    glPushMatrix();
-    glRotated(90, 1, 0, 0);
-    glScalef(0.5, 1, 1);
-    glTranslated(0,.5,-0.5);
-    door();
-    glPopMatrix();
-}
-
-void doorFinal()
-{
-
-    glPushMatrix();
-    glTranslated(-0.22,-0.18,-0.9);
-    glScalef(1,0.8,1);
-    door1();
-    glPopMatrix();
-}
-
-
-void windowFunction()
-{
-
-
-    glPushMatrix();
-    glScalef(0.5, 0.5, 0.5);
-    glTranslated(1, 0.2, 0);
-    doorFinal();
-
-    glPushMatrix();
-    glRotated(-90, 1, 0, 0);
-    glScalef(1, 1, 0.8);
-    glPushMatrix();
-    glTranslated(0, 0, 0.65);
-    doorFinal();
-    glPopMatrix();
-    glPopMatrix();
-
-    glPopMatrix();
-
-
-
-}
-
-void finalWindow1()
-{
-    glPushMatrix();
-    glTranslated(-0.28,0.1,-0.07);
-    windowFunction();
-    glPopMatrix();
-}
-
-void twofinalWindow()
-{
-    glPushMatrix();
-    finalWindow1();
-    glPopMatrix();
-
-    glPushMatrix();
-    glTranslated(-0.67, 0, 0);
-    finalWindow1();
-    glPopMatrix();
-}
-
-void sideFinalWindow()
-{
-    glPushMatrix();
-    glTranslated(0.48, 0.59, -0.3);
-    glRotated(90, 0, 1, 0);
-    finalWindow1();
-    glPopMatrix();
-}
-
-
-void cycleFinal(){
-    glPushMatrix();
-        glScaled(0.2, 0.2, 0.2);
-        glTranslated(1,2,0);
-        displayCycle();
-    glPopMatrix();
-}
-
-
-void cycleFinal2(){
-    glPushMatrix();
-        glScaled(0.4, 0.4, 0.4);
-        glTranslated(1.3, -0.17, -0.7);
-        glRotated(90, 0, 1, 0);
-        cycleFinal();
-    glPopMatrix();
-}
-
-
-
-
-
-///////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////
-
-// Drawing tree
-
-GLuint makeaTree;
-
-float x, y, z;
-
-void makeCylinder(float height, float base)
-{
-    GLUquadric *obj = gluNewQuadric();
-    glColor3f(0.0f, .4f, .5f);
-    glPushMatrix();
-    glRotatef(-90, 1.0,0.0,0.0);
-    gluCylinder(obj, base,base-(0.2*base), height, 20,20);
-    glPopMatrix();
-    glutSwapBuffers();
-}
-
-
-void makeTree(float height, float base)
-{
-
-    float angle;
-    makeCylinder(height, base);
-    glTranslatef(0.0, height, 0.0);
-    height -= height*.2;
-    base-= base*0.3;
-    for(int a= 0; a<3; a++)
-    {
-        angle = rand()%50+20;
-        if(angle >48)
-            angle = -(rand()%50+20);
-        if (height >1)
-        {
             glPushMatrix();
-            glRotatef(angle,1,0.0,1);
-            makeTree(height,base);
+               glTranslatef(0.0f,0.0f,-HANDLE_ROD/2);
+               ZCylinder(ROD_RADIUS,HANDLE_ROD);
             glPopMatrix();
 
-        }
-        else
-        {
-            glColor3f(0.3,.8,0.2);
-            glutSolidSphere(.2,5,10);
-        }
+            glPushMatrix();
+               glColor3f(1.0f,1.0f,0.0f);
+               glTranslatef(0.0f,0.0f,-HANDLE_ROD/2);
+               ZCylinder(0.07f,HANDLE_ROD/4);
+               glTranslatef(0.0f,0.0f,HANDLE_ROD*3/4);
+               ZCylinder(0.07f,HANDLE_ROD/4);
+               glColor3f(1.0f,0.0f,0.0f);
+            glPopMatrix();
+         glPopMatrix();
+
+
+         glPushMatrix();
+
+            XCylinder(ROD_RADIUS,CRANK_ROD);
+
+
+            glTranslatef(CRANK_ROD,0.0f,0.0f);
+            glRotatef(CRANK_ANGLE,0.0f,0.0f,1.0f);
+
+
+            glPushMatrix();
+               glTranslatef(0.0f,0.0f,WHEEL_OFFSET);
+               XCylinder(ROD_RADIUS,CRANK_RODS);
+            glPopMatrix();
+            glPushMatrix();
+               glTranslatef(0.0f,0.0f,-WHEEL_OFFSET);
+               XCylinder(ROD_RADIUS,CRANK_RODS);
+            glPopMatrix();
+
+            glTranslatef(CRANK_RODS,0.0f,0.0f);
+            glRotatef(-2*pedalAngle,0.0f,0.0f,1.0f);
+            drawTyre();
+         glPopMatrix();
+      glPopMatrix();   /*   End of the rotation of the handle effect   */
+   glPopMatrix();
+}
+
+void gear( GLfloat inner_radius, GLfloat outer_radius, GLfloat width,
+        GLint teeth, GLfloat tooth_depth )
+{
+    GLint i;
+    GLfloat r0, r1, r2;
+    GLfloat angle, da;
+    GLfloat u, v, len;
+    const double pi = 3.14159264;
+
+    r0 = inner_radius;
+    r1 = outer_radius - tooth_depth/2.0;
+    r2 = outer_radius + tooth_depth/2.0;
+
+    da = 2.0*pi / teeth / 4.0;
+
+    glShadeModel( GL_FLAT );
+
+    glNormal3f( 0.0, 0.0, 1.0 );
+
+    /* draw front face */
+    glBegin( GL_QUAD_STRIP );
+    for (i=0;i<=teeth;i++) {
+   angle = i * 2.0*pi / teeth;
+   glVertex3f( r0*cos(angle), r0*sin(angle), width*0.5 );
+   glVertex3f( r1*cos(angle), r1*sin(angle), width*0.5 );
+   glVertex3f( r0*cos(angle), r0*sin(angle), width*0.5 );
+   glVertex3f( r1*cos(angle+3*da), r1*sin(angle+3*da), width*0.5 );
+    }
+    glEnd();
+
+    /* draw front sides of teeth */
+    glBegin( GL_QUADS );
+    da = 2.0*pi / teeth / 4.0;
+    for (i=0;i<teeth;i++) {
+   angle = i * 2.0*pi / teeth;
+
+   glVertex3f( r1*cos(angle),      r1*sin(angle),     width*0.5 );
+   glVertex3f( r2*cos(angle+da),   r2*sin(angle+da),     width*0.5 );
+   glVertex3f( r2*cos(angle+2*da), r2*sin(angle+2*da), width*0.5 );
+   glVertex3f( r1*cos(angle+3*da), r1*sin(angle+3*da), width*0.5 );
+    }
+    glEnd();
+
+
+    glNormal3f( 0.0, 0.0, -1.0 );
+
+    /* draw back face */
+    glBegin( GL_QUAD_STRIP );
+    for (i=0;i<=teeth;i++) {
+   angle = i * 2.0*pi / teeth;
+   glVertex3f( r1*cos(angle), r1*sin(angle), -width*0.5 );
+   glVertex3f( r0*cos(angle), r0*sin(angle), -width*0.5 );
+   glVertex3f( r1*cos(angle+3*da), r1*sin(angle+3*da), -width*0.5 );
+   glVertex3f( r0*cos(angle), r0*sin(angle), -width*0.5 );
+    }
+    glEnd();
+
+    /* draw back sides of teeth */
+    glBegin( GL_QUADS );
+    da = 2.0*pi / teeth / 4.0;
+    for (i=0;i<teeth;i++) {
+   angle = i * 2.0*pi / teeth;
+
+   glVertex3f( r1*cos(angle+3*da), r1*sin(angle+3*da), -width*0.5 );
+   glVertex3f( r2*cos(angle+2*da), r2*sin(angle+2*da), -width*0.5 );
+   glVertex3f( r2*cos(angle+da),   r2*sin(angle+da),     -width*0.5 );
+   glVertex3f( r1*cos(angle),      r1*sin(angle),     -width*0.5 );
+    }
+    glEnd();
+
+
+    /* draw outward faces of teeth */
+    glBegin( GL_QUAD_STRIP );
+    for (i=0;i<teeth;i++) {
+   angle = i * 2.0*pi / teeth;
+
+   glVertex3f( r1*cos(angle),      r1*sin(angle),      width*0.5 );
+   glVertex3f( r1*cos(angle),      r1*sin(angle),     -width*0.5 );
+   u = r2*cos(angle+da) - r1*cos(angle);
+   v = r2*sin(angle+da) - r1*sin(angle);
+   len = sqrt( u*u + v*v );
+   u /= len;
+   v /= len;
+   glNormal3f( v, -u, 0.0 );
+   glVertex3f( r2*cos(angle+da),   r2*sin(angle+da),      width*0.5 );
+   glVertex3f( r2*cos(angle+da),   r2*sin(angle+da),     -width*0.5 );
+   glNormal3f( cos(angle), sin(angle), 0.0 );
+   glVertex3f( r2*cos(angle+2*da), r2*sin(angle+2*da),  width*0.5 );
+   glVertex3f( r2*cos(angle+2*da), r2*sin(angle+2*da), -width*0.5 );
+   u = r1*cos(angle+3*da) - r2*cos(angle+2*da);
+   v = r1*sin(angle+3*da) - r2*sin(angle+2*da);
+   glNormal3f( v, -u, 0.0 );
+   glVertex3f( r1*cos(angle+3*da), r1*sin(angle+3*da),  width*0.5 );
+   glVertex3f( r1*cos(angle+3*da), r1*sin(angle+3*da), -width*0.5 );
+   glNormal3f( cos(angle), sin(angle), 0.0 );
     }
 
-}
+    glVertex3f( r1*cos(0.0), r1*sin(0.0), width*0.5 );
+    glVertex3f( r1*cos(0.0), r1*sin(0.0), -width*0.5 );
+
+    glEnd();
 
 
-void initTree(){
+    glShadeModel( GL_SMOOTH );
 
-    makeaTree=glGenLists(1);
-    glNewList(makeaTree, GL_COMPILE);
-    makeTree(4,0.2);
-    glEndList();
-
-}
-
-void treeDisplay(){
-
-    GLfloat mat_ambient[] = {0.7f, 0.7f, 0.7f, 1.0f};
-    GLfloat mat_defused[] = {0.6f, 0.6f, 0.6f, 1.0f};
-    GLfloat mat_specular[] = {1.0f, 1.0f, 1.0f, 1.0f};
-    GLfloat mat_shininess[] = {50.0f};
-
-    glMaterialfv(GL_FRONT, GL_AMBIENT, mat_ambient);
-    glMaterialfv(GL_FRONT, GL_DIFFUSE, mat_defused);
-    glMaterialfv(GL_FRONT, GL_SPECULAR, mat_specular);
-    glMaterialfv(GL_FRONT, GL_SHININESS, mat_shininess);
-
-
-    GLfloat lightIntensity[] = {1.7f, 1.7f, 1.7f, 1.0f};
-    GLfloat lightPosition[] = {2.0f, 6.0f, 3.0f, 0.0f};
-
-
-    glLightfv(GL_LIGHT0, GL_POSITION, lightPosition);
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, lightIntensity);
-
-    glViewport(0, 0, WindowSizX,WindowSizY );
-
-
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-
-    float aspectR = (float)WindowSizX / WindowSizY;
-
-    gluPerspective(fova,aspectR, Near, Far);
-
-
-    glMatrixMode(GL_MODELVIEW);/////
-    glLoadIdentity();//////
-
-    gluLookAt(EyePosition_X,EyePosition_Y,EyePosition_Z,Center_X,Center_Y,Center_Z,Up_X,Up_Y,Up_Z);
-
-    ///start drawing
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-    initTree();
-
-
-
-    //glFlush();
-    //glutSwapBuffers();
+    /* draw inside radius cylinder */
+    glBegin( GL_QUAD_STRIP );
+    for (i=0;i<=teeth;i++) {
+   angle = i * 2.0*pi / teeth;
+   glNormal3f( -cos(angle), -sin(angle), 0.0 );
+   glVertex3f( r0*cos(angle), r0*sin(angle), -width*0.5 );
+   glVertex3f( r0*cos(angle), r0*sin(angle), width*0.5 );
+    }
+    glEnd();
 
 }
 
 
-void treeReshape(int w, int h){
-    glViewport (0, 0, (GLsizei) w, (GLsizei) h);
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-    gluPerspective(30.0, (GLfloat) w/(GLfloat) h, 0.001, 1000.0);
-    glMatrixMode(GL_MODELVIEW);
-    glLoadIdentity();
-    glTranslatef(0.0,-8.0,-50.0);
+void drawChain()
+{
+   GLfloat depth;
+   static int mode=0;
+
+   glColor3f(0.0f,1.0f,0.0f);
+   glEnable(GL_LINE_STIPPLE);
+   mode=(mode+1)%2;
+
+   if(mode==0 && speed>0)
+      glLineStipple(1,0x1c47);
+   else if(mode==1 && speed>0)
+      glLineStipple(1,0x00FF);
+
+   glBegin(GL_LINES);
+   for(depth=0.06f;depth<=0.12f;depth+=0.01f)
+   {
+      glVertex3f(-1.6f,0.15f,ROD_RADIUS);
+      glVertex3f(0.0f,0.3f,depth);
+
+      glVertex3f(-1.6f,-0.15f,ROD_RADIUS);
+      glVertex3f(0.0f,-0.3f,depth);
+   }
+   glEnd();
+   glDisable(GL_LINE_STIPPLE);
 }
 
+void drawSeat()
+{
 
 
-/// End Tree Code
-///////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////
-///////////////////////////////////////////////////////////
+   glBegin(GL_POLYGON);
+      glVertex3f(-0.1f, 1.0f, -0.5f);
+      glVertex3f(   1.0f, 1.0f, -0.3f);
+      glVertex3f( 1.0f, 1.0f,  0.3f);
+      glVertex3f(-0.1f, 1.0f,  0.5f);
+      glVertex3f(-0.5f, 1.0f,  1.0f);
+      glVertex3f(-1.0f, 1.0f,  1.0f);
+      glVertex3f(-1.0f, 1.0f, -1.0f);
+      glVertex3f(-0.5f, 1.0f, -1.0f);
+   glEnd();
+
+   glBegin(GL_POLYGON);
+      glVertex3f(-0.1f, -1.0f, -0.5f);
+      glVertex3f(   1.0f, -1.0f, -0.3f);
+      glVertex3f( 1.0f, -1.0f,  0.3f);
+      glVertex3f(-0.1f, -1.0f,  0.5f);
+      glVertex3f(-0.5f, -1.0f,  1.0f);
+      glVertex3f(-1.0f, -1.0f,  1.0f);
+      glVertex3f(-1.0f, -1.0f, -1.0f);
+      glVertex3f(-0.5f, -1.0f, -1.0f);
+   glEnd();
+
+   /**********************
+   *   Draw the sides!
+   ***********************/
+   glBegin(GL_QUADS);
+      glVertex3f(1.0f,1.0f,-0.3f);
+      glVertex3f(1.0f,1.0f,0.3f);
+      glVertex3f(1.0f,-1.0f,0.3f);
+      glVertex3f(1.0f,-1.0f,-0.3f);
+
+      glVertex3f(1.0f,1.0f,0.3f);
+      glVertex3f(-0.1f,1.0f,0.5f);
+      glVertex3f(-0.1f,-1.0f,0.5f);
+      glVertex3f(1.0f,-1.0f,0.3f);
+
+      glVertex3f(1.0f,1.0f,-0.3f);
+      glVertex3f(-0.1f,1.0f,-0.5f);
+      glVertex3f(-0.1f,-1.0f,-0.5f);
+      glVertex3f(1.0f,-1.0f,-0.3f);
+
+      glVertex3f(-0.1f,1.0f,0.5f);
+      glVertex3f(-0.5f,1.0f,1.0f);
+      glVertex3f(-0.5f,-1.0f,1.0f);
+      glVertex3f(-0.1f,-1.0f,0.5f);
+
+      glVertex3f(-0.1f,1.0f,-0.5f);
+      glVertex3f(-0.5f,1.0f,-1.0f);
+      glVertex3f(-0.5f,-1.0f,-1.0f);
+      glVertex3f(-0.1f,-1.0f,-0.5f);
+
+      glVertex3f(-0.5f,1.0f,1.0f);
+      glVertex3f(-1.0f,1.0f,1.0f);
+      glVertex3f(-1.0f,-1.0f,1.0f);
+      glVertex3f(-0.5f,-1.0f,1.0f);
+
+      glVertex3f(-0.5f,1.0f,-1.0f);
+      glVertex3f(-1.0f,1.0f,-1.0f);
+      glVertex3f(-1.0f,-1.0f,-1.0f);
+      glVertex3f(-0.5f,-1.0f,-1.0f);
+
+      glVertex3f(-1.0f,1.0f,1.0f);
+      glVertex3f(-1.0f,1.0f,-1.0f);
+      glVertex3f(-1.0f,-1.0f,-1.0f);
+      glVertex3f(-1.0f,-1.0f,1.0f);
+
+   glEnd();
 
 
+}
+
+void drawPedals()
+{
+   glColor3f(0.0f,0.0f,1.0f);
+
+   glPushMatrix();
+      glTranslatef(0.0f,0.0f,0.105f);
+      glRotatef(-pedalAngle,0.0f,0.0f,1.0f);
+      glTranslatef(0.25f,0.0f,0.0f);
+
+      glPushMatrix();
+         glScalef(0.5f,0.1f,0.1f);
+         glutSolidCube(1.0f);
+      glPopMatrix();
 
 
+      glPushMatrix();
+         glTranslatef(0.25f,0.0f,0.15f);
+         glRotatef(pedalAngle,0.0f,0.0f,1.0f);
+         glScalef(0.2f,0.02f,0.3f);
+         glutSolidCube(1.0f);
+      glPopMatrix();
+
+   glPopMatrix();
 
 
+   glPushMatrix();
+      glTranslatef(0.0f,0.0f,-0.105f);
+      glRotatef(180.0f-pedalAngle,0.0f,0.0f,1.0f);
+      glTranslatef(0.25f,0.0f,0.0f);
+
+      glPushMatrix();
+         glScalef(0.5f,0.1f,0.1f);
+         glutSolidCube(1.0f);
+      glPopMatrix();
 
 
+      glPushMatrix();
+         glTranslatef(0.25f,0.0f,-0.15f);
+         glRotatef(pedalAngle-180.0f,0.0f,0.0f,1.0f);
+         glScalef(0.2f,0.02f,0.3f);
+         glutSolidCube(1.0f);
+      glPopMatrix();
+
+   glPopMatrix();
+
+   glColor3f(1.0f,0.0f,0.0f);
+}
+
+void drawTyre(void)
+{
+   int i;
+   //   Draw The Rim
+   glColor3f(1.0f,1.0f,1.0f);
+   glutSolidTorus(0.06f,0.92f,4,30);
+   //   Draw The Central Cylinder
+   //   Length of cylinder  0.12f
+   glColor3f(1.0f,1.0f,0.5f);
+   glPushMatrix();
+      glTranslatef(0.0f,0.0f,-0.06f);
+      ZCylinder(0.02f,0.12f);
+   glPopMatrix();
+   glutSolidTorus(0.02f,0.02f,3,20);
+
+   //   Draw The Spokes
+   glColor3f(1.0f,1.0f,1.0f);
+   for(i=0;i<NUM_SPOKES;++i)
+   {
+      glPushMatrix();
+         glRotatef(i*SPOKE_ANGLE,0.0f,0.0f,1.0f);
+         glBegin(GL_LINES);
+            glVertex3f(0.0f,0.02f,0.0f);
+            glVertex3f(0.0f,0.86f,0.0f);
+         glEnd();
+      glPopMatrix();
+   }
+
+   //   Draw The Tyre
+   glColor3f(0.0f,0.0f,0.0f);
+   glutSolidTorus(TUBE_WIDTH,RADIUS_WHEEL,10,30);
+   glColor3f(1.0f,0.0f,0.0f);
+}
+
+void init()
+{
+   GLfloat mat_specular[]={1.0,1.0,1.0,1.0};
+   GLfloat mat_shininess[]={100.0};
+   GLfloat light_directional[]={1.0,1.0,1.0,1.0};
+   GLfloat light_positional[]={1.0,1.0,1.0,0.0};
+   GLfloat light_diffuse[]={1.0,1.0,1.0};
+
+   reset();
+
+   glShadeModel(GL_SMOOTH);
+
+   glLightfv(GL_LIGHT0,GL_POSITION,light_directional);
+   glLightfv(GL_LIGHT0,GL_AMBIENT,light_diffuse);
+   glLightfv(GL_LIGHT0,GL_DIFFUSE,light_diffuse);
+   glMaterialfv(GL_FRONT,GL_SHININESS,mat_shininess);
+   glMaterialfv(GL_FRONT,GL_SPECULAR,mat_specular);
+   glColorMaterial(GL_FRONT,GL_DIFFUSE);
+
+   glEnable(GL_LIGHTING);
+   glEnable(GL_LIGHT0);
+   glEnable(GL_COLOR_MATERIAL);
+   glEnable(GL_DEPTH_TEST);
+}
+
+void landmarks(void)
+{
+      GLfloat i;
+      glColor3f(0.0f,1.0f,0.0f);
 
 
-
-
+      glBegin(GL_LINES);
+      for(i=-100.0f ; i<100.0f ; i += 1.0f)
+      {
+         glVertex3f(-100.0f,-RADIUS_WHEEL,i);
+         glVertex3f( 100.0f,-RADIUS_WHEEL,i);
+         glVertex3f(i,-RADIUS_WHEEL,-100.0f);
+         glVertex3f(i,-RADIUS_WHEEL,100.0f);
+      }
+      glEnd();
+}
 
 void display(void)
 {
+   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+   glEnable(GL_NORMALIZE);
 
-    GLfloat mat_ambient[] = {0.7f, 0.7f, 0.7f, 1.0f};
-    GLfloat mat_defused[] = {0.6f, 0.6f, 0.6f, 1.0f};
-    GLfloat mat_specular[] = {1.0f, 1.0f, 1.0f, 1.0f};
-    GLfloat mat_shininess[] = {50.0f};
+   glPushMatrix();
 
-    glMaterialfv(GL_FRONT, GL_AMBIENT, mat_ambient);
-    glMaterialfv(GL_FRONT, GL_DIFFUSE, mat_defused);
-    glMaterialfv(GL_FRONT, GL_SPECULAR, mat_specular);
-    glMaterialfv(GL_FRONT, GL_SHININESS, mat_shininess);
-
-
-    GLfloat lightIntensity[] = {1.7f, 1.7f, 1.7f, 1.0f};
-    GLfloat lightPosition[] = {2.0f, 6.0f, 3.0f, 0.0f};
-
-
-    glLightfv(GL_LIGHT0, GL_POSITION, lightPosition);
-    glLightfv(GL_LIGHT0, GL_DIFFUSE, lightIntensity);
-
-    glViewport(0, 0, WindowSizX,WindowSizY );
-
-
-    glMatrixMode(GL_PROJECTION);
-    glLoadIdentity();
-
-    float aspectR = (float)WindowSizX / WindowSizY;
-
-    gluPerspective(fova,aspectR, Near, Far);
-
-
-    glMatrixMode(GL_MODELVIEW);/////
-    glLoadIdentity();//////
-
-    gluLookAt(EyePosition_X,EyePosition_Y,EyePosition_Z,Center_X,Center_Y,Center_Z,Up_X,Up_Y,Up_Z);
-
-    ///start drawing
-    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-     /// Trees
-     glPushMatrix();
-       // glutDisplayFunc(treeDisplay());
-     glPopMatrix();
-
-
-    /// Building Block
-
-    glPushMatrix();
-        glTranslated(-1,0,-0.8);
-        glScalef(2, 2,1);
-        building();
-    glPopMatrix();
+      glRotatef(angley,1.0f,0.0f,0.0f);
+      glRotatef(anglex,0.0f,1.0f,0.0f);
+      glRotatef(anglez,0.0f,0.0f,1.0f);
 
 
 
+      landmarks();
 
+      glPushMatrix();
+         glTranslatef(xpos,0.0f,zpos);
+         glRotatef(direction,0.0f,1.0f,0.0f);
 
+         drawFrame();
+         drawChain();
+         drawPedals();
+      glPopMatrix();
 
-    /// Cycle Garage
-    glPushMatrix();
-        glTranslated(0.6,-0.3,-0.4);
-        road();
-    glPopMatrix();
+   glPopMatrix();
 
-    glPushMatrix();
-        glEnable(GL_TEXTURE_2D);
-        glBindTexture(GL_TEXTURE_2D, 6);
+   glMatrixMode(GL_MODELVIEW);
+   glLoadIdentity();
+   gluLookAt(camx,camy,camz,  camx,0.0,0.0,  0.0,1.0,0.0);
 
-        cycleFinal2();
-        glTranslated(0.2, 0, 0);
-        cycleFinal2();
-
-        glDisable(GL_TEXTURE_2D);
-    glPopMatrix();
-
-
-
-
-    /// Grass
-    glPushMatrix();
-    glBindTexture(GL_TEXTURE_2D,4);
-    glEnable(GL_TEXTURE_2D);
-    glScalef(4,1,4);
-    glTranslated(0,-0.33,0);
-    grass();
-    glDisable(GL_TEXTURE_2D);
-    glPopMatrix();
-
-
-    /// gate
-
-
-    glPushMatrix();
-    glTranslated(0,-0.04,0);
-    gatefinal2();
-    glPopMatrix();
-
-
-    /// gate boundary
-
-    glPushMatrix();
-    gateBoundary1Side();
-    glTranslated(0,0,-2.36);
-    gateBoundary1Side();
-    glPopMatrix();
-
-    /// road Initial
-
-    glPushMatrix();
-    roadInit();
-    glPopMatrix();
-
-    /// door final
-
-    glPushMatrix();
-    doorFinal();
-    glPopMatrix();
-
-    /// window down
-
-    glPushMatrix();
-    twofinalWindow();
-    glPopMatrix();
-
-    glPushMatrix();
-    glTranslated(0, 0.6, 0);
-    twofinalWindow();
-    glPopMatrix();
-
-
-    /// side final window
-
-    glPushMatrix();
-    sideFinalWindow();
-    glPopMatrix();
-
-
-    glPushMatrix();
-    glTranslated(0, -0.6, 0);
-    sideFinalWindow();
-    glPopMatrix();
-
-
-    glFlush();
-
-    glutSwapBuffers();
+   glutSwapBuffers();
 }
 
 
-
-void RepeatDisplay()
+GLfloat Abs(GLfloat a)
 {
-    glutPostRedisplay();
+   if(a < 0.0f)
+      return -a;
+   else
+      return a;
 }
 
 
-void Movenent()
+
+GLfloat degrees(GLfloat a)
 {
-
-    CalculationX_Y_Z();
-
-    if(PressMovenent == Theta1)
-        CalculationTH1();
-    else
-        CalculationTH2();
-
+   return a*180.0f/PI;
 }
 
 
-void CalculationX_Y_Z()
+GLfloat radians(GLfloat a)
 {
-    ProRadious = Radious * cos(InitialTheta2);
-    EyePosition_Y = Radious * sin(InitialTheta2);
-
-    EyePosition_X = ProRadious * cos(InitialTheta1);
-    EyePosition_Z = ProRadious * sin(InitialTheta1);
-
-    printf("EyePosition_X: %f\n",EyePosition_X);
-    printf("EyePosition_Y: %f\n",EyePosition_Y);
-    printf("EyePosition_Z: %f\n\n",EyePosition_Z);
+   return a*PI/180.0f;
 }
 
 
-
-void CalculationTH1()
+void idle(void)
 {
-    if (InitialTheta1 > PI*2)
-        InitialTheta1 = 0.0;
-    if(direction == AntiClockWise)
-    {
-        InitialTheta1 += IncrementTheta;
-        printf("InitialTheta1: %f\n",InitialTheta1);
-    }
-    else
-        InitialTheta1 -= IncrementTheta;
-    printf("InitialTheta1: %f\n",InitialTheta1);
+   updateScene();
+   glutPostRedisplay();
 }
 
-
-
-void CalculationTH2()
+void special(int key,int x,int y)
 {
-    if (InitialTheta2 > PI*2)
-        InitialTheta2 = 0.0;
-
-    if(direction == AntiClockWise)
-    {
-        InitialTheta2 += IncrementTheta;
-        printf("InitialTheta2: %f\n",InitialTheta2);
-    }
-
-    else
-        InitialTheta2 -= IncrementTheta;
-    printf("InitialTheta2: %f\n",InitialTheta2);
-
+   switch(key)
+   {
+      case GLUT_KEY_UP:
+         camz -= 0.1f;
+         break;
+      case GLUT_KEY_DOWN:
+         camz += 0.1f;
+         break;
+      case GLUT_KEY_LEFT:
+         camx -= 0.1f;
+         break;
+      case GLUT_KEY_RIGHT:
+         camx += 0.1f;
+         break;
+   }
+   glutPostRedisplay();
 }
 
 
-
-void CalculationRadious(unsigned int key)
+void reset()
 {
-
-    if(key == '-')
-    {
-        if(Radious > MaximumRadious)
-            Radious = MaximumRadious;
-        else
-            Radious += 0.2;
-        printf("Radious: %f\n",Radious);
-    }
-    else if(key == '+')
-    {
-        if(Radious <= MinimumRadious)
-            Radious = MinimumRadious;
-        else
-            Radious -= 0.2;
-        printf("Radious: %f\n",Radious);
-    }
-
-    CalculationX_Y_Z();
+   anglex=angley=anglez=0.0f;
+   pedalAngle=steering=0.0f;
+   Mouse=GLUT_UP;
+   pedalAngle=speed=steering=0.0f;
+   camx=camy=0.0f;
+   camz=5.0f;
+   xpos=zpos=0.0f;
+   direction=0.0f;
 }
 
-
-void KeybordFunction( unsigned char key, int x, int y )
+void keyboard(unsigned char key,int x,int y)
 {
+   GLfloat r=0.0f;
 
-    if(key=='-')
+   switch(key)
+   {
+      case 's':
+      case 'S':
+         reset();
+         break;
+      case 'z':
+         if(steering < HANDLE_LIMIT)
+               steering += INC_STEERING;
+         break;
+      case 'b':
+         if(steering > -HANDLE_LIMIT)
+            steering -= INC_STEERING;
+         break;
+      case '+':
+         speed += INC_SPEED;
+         break;
+      case '-':
+         speed -= INC_SPEED;
+         break;
+      case 27:
+         exit(1);
+   }
 
-        CalculationRadious(key);
-
-    else if(key=='+')
-        CalculationRadious(key);
-
-    else if(key == '4')
-    {
-        direction = ClockWise;
-        PressMovenent = Theta1;
-        Movenent();
-    }
-
-    else if(key == '6')
-    {
-
-        direction = AntiClockWise;
-        PressMovenent = Theta1;
-        Movenent();
-    }
-    else if(key == '8')
-    {
-
-        direction = ClockWise;
-        PressMovenent = Theta2;
-        Movenent();
-    }
-    else if(key == '2')
-    {
-
-        direction = AntiClockWise;
-        PressMovenent = Theta2;
-        Movenent();
-    }
-    else if(key == 27)  exit(0);
-
+   pedalAngle += speed;
+   if(speed < 0.0f)
+      speed = 0.0f;
+   if(pedalAngle < 0.0f)
+      pedalAngle = 0.0f;
+   if(pedalAngle >= 360.0f)
+      pedalAngle -= 360.0f;
+   glutPostRedisplay();
 }
 
-
-
-void Init()
+void mouse(int button,int state,int x,int y)
 {
-    glEnable(GL_TEXTURE_2D);
-
-
-    pix[0].makeCheckImage();
-    pix[0].setTexture(1);	// create texture int parameter as TextureName
-
-
-    //pix[0].readBMPFile("teapot.bmp");
-    //	pix[0].setTexture(1);
-
-    pix[1].readBMPFile("brick.bmp");
-    pix[1].setTexture(2);
-
-    pix[2].readBMPFile("wood.bmp");
-    pix[2].setTexture(3);
-
-    pix[3].readBMPFile("grass.bmp");
-    pix[3].setTexture(4);
-
-    pix[4].readBMPFile("wall.bmp");
-    pix[4].setTexture(5);
-
-    pix[5].readBMPFile("gate.bmp");
-    pix[5].setTexture(6);
-
-    pix[6].readBMPFile("road.bmp");
-    pix[6].setTexture(7);
-
-    pix[7].readBMPFile("door.bmp");
-    pix[7].setTexture(8);
-
+   switch(button)
+   {
+      case GLUT_LEFT_BUTTON:
+         if(state==GLUT_DOWN)
+         {
+            Mouse=GLUT_DOWN;
+            prevx=x;
+            prevy=y;
+         }
+         if(state==GLUT_UP)
+         {
+            Mouse=GLUT_UP;
+         }
+         break;
+      case GLUT_RIGHT_BUTTON:
+         /*   DO NOTHING   */
+         break;
+   }
+   glutPostRedisplay();
 }
 
-
-
-
-
-int main(int argc, char **argv)
+void passive(int x,int y)
 {
-
-    glutInit(&argc, argv);
-    glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB | GLUT_DEPTH);
-    glutInitWindowPosition(windowPosX, windowPosY);
-    glutInitWindowSize(WindowSizX, WindowSizY);
-    glutCreateWindow("3D Home");
-    glutKeyboardFunc(KeybordFunction);
-
-    glutIdleFunc(RepeatDisplay);
-
-    glutDisplayFunc(display);
-
-    //glutReshapeFunc(treeReshape);
-    //glutDisplayFunc(treeDisplay);
-
-
-    glEnable(GL_LIGHTING);
-    glEnable(GL_LIGHT0);
-    glShadeModel(GL_SMOOTH);
-    glEnable(GL_DEPTH_TEST);
-    glEnable(GL_NORMALIZE);
-
-    glutSpecialFunc(specialKeys);
-    glutFullScreen();
-
-    Init();
-
-    glutMainLoop();
-
-    return 0;
+/*   DO NOTHING   */
 }
+
+void motion(int x,int y)
+{
+   if(Mouse==GLUT_DOWN)
+   {
+      int deltax,deltay;
+      deltax=prevx-x;
+      deltay=prevy-y;
+      anglex += 0.5*deltax;
+      angley += 0.5*deltay;
+      if(deltax!=0 && deltay!=0)
+         anglez += 0.5*sqrt(deltax*deltax + deltay*deltay);
+
+      if(anglex < 0)
+         anglex+=360.0;
+      if(angley < 0)
+         angley+=360.0;
+      if(anglez < 0)
+         anglez += 360.0;
+
+      if(anglex > 360.0)
+         anglex-=360.0;
+      if(angley > 360.0)
+         angley-=360.0;
+      if(anglez > 360.0)
+         anglez-=360.0;
+   }
+   else
+   {
+      Mouse=GLUT_UP;
+   }
+   prevx=x;
+   prevy=y;
+   glutPostRedisplay();
+}
+
+void reshape(int w,int h)
+{
+   glViewport(0,0,(GLsizei)w,(GLsizei)h);
+   glMatrixMode(GL_PROJECTION);
+   glLoadIdentity();
+   gluPerspective(60.0,(GLfloat)w/(GLfloat)h,0.1,100.0);
+   //Angle,Aspect Ratio,near plane,far plane
+   glMatrixMode(GL_MODELVIEW);
+   glLoadIdentity();
+   gluLookAt(camx,camy,camz,  0.0,0.0,0.0,  0.0,1.0,0.0);
+}
+
+void glSetupFuncs(void)
+
+{
+   glutDisplayFunc(display);
+   glutReshapeFunc(reshape);
+   glutIdleFunc(idle);
+   glutSpecialFunc(special);
+   glutKeyboardFunc(keyboard);
+   glutMouseFunc(mouse);
+   glutMotionFunc(motion);
+   glutPassiveMotionFunc(passive);
+   glutSetCursor(GLUT_CURSOR_CROSSHAIR);
+}
+
+int main(int argc,char *argv[])
+{
+   glutInit(&argc,argv);
+   glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
+   glutInitWindowPosition(100,100);
+   glutInitWindowSize(WIN_WIDTH,WIN_HEIGHT);
+   glutCreateWindow("BiCycle");
+   init();
+   glSetupFuncs();
+   glutMainLoop();
+}
+
